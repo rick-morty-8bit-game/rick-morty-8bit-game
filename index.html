@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>8-Bit Multiverse — прототип</title>
+<style>
+:root{--green:#8cff35;--cyan:#32e8ff;--bg:#070b20}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#e9faff;font-family:monospace;display:flex;justify-content:center;min-height:100vh}
+#wrap{width:min(100vw,960px);display:flex;flex-direction:column;gap:8px;padding:8px}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+h1{font-size:clamp(16px,3vw,26px);margin:4px 0;color:var(--green);text-shadow:2px 2px #15431c}
+button{font: bold 14px monospace;color:#eaffff;background:#10243c;border:2px solid var(--cyan);padding:10px 12px;border-radius:4px;touch-action:manipulation}
+button:active,.active{background:#17623c;border-color:var(--green)}
+#game{width:100%;aspect-ratio:16/9;display:block;border:3px solid #1a6885;background:#080f2b;image-rendering:pixelated}
+#bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;font-size:13px}
+#controls{display:flex;justify-content:space-between;gap:10px;user-select:none}
+.cluster{display:flex;gap:8px}.ctrl{min-width:58px;min-height:54px;font-size:20px;opacity:.9}
+#hint{font-size:12px;line-height:1.5;color:#b7d5ec}
+@media(min-width:700px){#controls{max-width:620px;margin:auto;width:100%}.ctrl{min-width:68px}}
+</style>
+</head>
+<body><main id="wrap">
+<header><h1>RICK & MORTY: 8-BIT MULTIVERSE</h1><button id="mode">РЕЖИМ: ПЛАТФОРМЕР</button><button id="restart">ЗАНОВО</button></header>
+<canvas id="game" width="960" height="540" aria-label="8-битная игра"></canvas>
+<div id="bar"><span id="stats">❤️❤️❤️ · 🪙 0</span><span id="mission">Миссия: собери монеты и найди портал!</span></div>
+<div id="controls">
+ <div class="cluster"><button class="ctrl" data-key="left">◀</button><button class="ctrl" data-key="right">▶</button></div>
+ <div class="cluster"><button class="ctrl" data-key="jump">▲</button><button class="ctrl" data-key="fire">⚡</button><button class="ctrl" data-key="switch">R/M</button></div>
+</div>
+<div id="hint">Управление: ← → движение, ↑ прыжок, Z/⚡ выстрел, X/R/M переключение героя, P — пауза. На телефоне используй кнопки. Дойди до зелёного портала; режим тарелки переключается кнопкой сверху.</div>
+</main>
+<script>
+(()=> {
+const c=document.getElementById('game'),ctx=c.getContext('2d');
+const W=c.width,H=c.height;
+const keys={left:false,right:false,jump:false,fire:false};
+let hero='Rick',mode='platform',coins=0,hearts=3,frame=0,paused=false,won=false;
+let player={x:90,y:380,vx:0,vy:0,w:28,h:42,on:false,shot:0};
+let shots=[],enemyShots=[],enemies=[],pickups=[],particles=[];
+const platforms=[{x:0,y:478,w:960,h:62},{x:175,y:390,w:145,h:18},{x:390,y:330,w:145,h:18},{x:615,y:385,w:125,h:18},{x:790,y:300,w:170,h:18}];
+function reset(){hero='Rick';mode='platform';coins=0;hearts=3;frame=0;won=false;paused=false;player={x:90,y:380,vx:0,vy:0,w:28,h:42,on:false,shot:0};shots=[];enemyShots=[];enemies=[];pickups=[];particles=[];for(let i=0;i<7;i++)pickups.push({x:210+i*95,y:[350,350,290,290,345,260,260][i],got:false});for(let i=0;i<5;i++)enemies.push({x:280+i*140,y:438,w:28,h:32,dir:i%2?1:-1,hp:2,alive:true});}
+function rect(x,y,w,h,col){ctx.fillStyle=col;ctx.fillRect(Math.round(x),Math.round(y),w,h)}
+function text(t,x,y,size=18,col='#fff'){ctx.font=`bold ${size}px monospace`;ctx.fillStyle=col;ctx.fillText(t,x,y)}
+function star(x,y,r,col){ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
+function drawPortal(x,y,scale=1){ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);for(let i=0;i<5;i++){ctx.strokeStyle=i%2?'#46ff54':'#b2ff42';ctx.lineWidth=4;ctx.beginPath();ctx.ellipse(0,0,18+i*4,34+i*4,0,0,Math.PI*2);ctx.stroke()}ctx.restore()}
+function drawHero(x,y,who,scale=1){ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);
+ if(who==='Rick'){rect(8,0,14,7,'#d7f5ff');rect(4,5,22,19,'#bdeaff');rect(8,10,4,4,'#10182b');rect(19,10,4,4,'#10182b');rect(11,18,11,3,'#b84953');rect(6,24,19,15,'#f2f3e8');rect(11,24,4,15,'#58dce9');rect(7,39,7,5,'#f4f0c9');rect(19,39,7,5,'#f4f0c9');}
+ else {rect(7,0,15,7,'#6a4b25');rect(5,5,20,17,'#f3c18a');rect(9,10,3,4,'#10182b');rect(18,10,3,4,'#10182b');rect(6,22,19,17,'#ffd929');rect(8,39,7,5,'#67503c');rect(18,39,7,5,'#67503c');}
+ ctx.restore()}
+function background(){rect(0,0,W,H,'#08112f');for(let i=0;i<55;i++){let x=(i*173+frame*.12)%W,y=(i*79)%330;star(x,y, i%4===0?2:1,'#91c7ff')}
+ // distant alien city
+ for(let i=0;i<18;i++){let x=i*58;rect(x,360-(i*37%95),42,118,'#122a51');rect(x+8,375-(i*37%95),5,5,'#32dfff');rect(x+25,392-(i*37%95),5,5,'#a8ff4b')}
+ rect(0,465,W,75,'#151f3a');rect(0,465,W,8,'#7dfb43');
+ for(let x=0;x<W;x+=32){rect(x,492,26,8,'#26395b');rect(x+9,510,8,6,'#26395b')}
+ drawPortal(890,410,.8);
+}
+function drawPlatform(){platforms.forEach((p,i)=>{rect(p.x,p.y,p.w,p.h,'#563d62');rect(p.x,p.y,p.w,7,'#74ed42');for(let x=p.x+8;x<p.x+p.w;x+=24)rect(x,p.y+13,12,5,i%2?'#9d6a44':'#73503e')})}
+function update(){
+ if(paused||won)return;frame++;
+ if(mode==='platform'){
+  player.vx=(keys.left?-3.4:0)+(keys.right?3.4:0);player.x+=player.vx;player.x=Math.max(0,Math.min(W-player.w,player.x));
+  player.vy+=.48;player.y+=player.vy;player.on=false;
+  for(const p of platforms)if(player.x+player.w>p.x&&player.x<p.x+p.w&&player.y+player.h>=p.y&&player.y+player.h<=p.y+18&&player.vy>=0){player.y=p.y-player.h;player.vy=0;player.on=true}
+  if(keys.jump&&player.on)player.vy=-10.5;
+  if(keys.fire&&player.shot<=0){shots.push({x:player.x+player.w,y:player.y+20,vx:hero==='Rick'?7:5});player.shot=18}player.shot--;
+  enemies.forEach(e=>{if(!e.alive)return;e.x+=e.dir*1.1;if(e.x<30||e.x>900)e.dir*=-1;if(hit(player,e)&&frame%55===0){hearts--;if(hearts<=0)reset()}});
+  shots.forEach(s=>{s.x+=s.vx;enemies.forEach(e=>{if(e.alive&&s.x>e.x&&s.x<e.x+e.w&&s.y>e.y&&s.y<e.y+e.h){e.hp--;s.dead=true;if(e.hp<=0){e.alive=false;coins+=5;for(let i=0;i<8;i++)particles.push({x:e.x,y:e.y,vx:Math.random()*4-2,vy:-Math.random()*4,life:25})}}})});
+  shots=shots.filter(s=>!s.dead&&s.x<W);
+  pickups.forEach(p=>{if(!p.got&&Math.abs(player.x-p.x)<22&&Math.abs(player.y-p.y)<45){p.got=true;coins+=10}});
+  if(player.x>850&&player.y>350){won=true;document.getElementById('mission').textContent='Портал открыт! Ты прошёл уровень — нажми ЗАНОВО для новой попытки.'}
+  if(player.y>H){hearts--;player.x=70;player.y=400;player.vy=0;if(hearts<=0)reset()}
+ }else{
+  player.x+=((keys.right?3:0)-(keys.left?3:0));player.y+=((keys.jump?-3:0)+(keys.fire?0:0));player.x=Math.max(20,Math.min(920,player.x));player.y=Math.max(70,Math.min(470,player.y));
+  if(keys.fire&&frame%9===0)shots.push({x:player.x+20,y:player.y+8,vx:7});
+  shots.forEach(s=>{s.x+=s.vx;if(s.x>700&&s.x<750){s.dead=true;coins+=2}});
+  shots=shots.filter(s=>!s.dead&&s.x<W);
+  if(frame%95===0)enemyShots.push({x:900,y:100+Math.random()*350,vx:-4});
+  enemyShots.forEach(s=>{s.x+=s.vx;if(Math.abs(s.x-player.x)<20&&Math.abs(s.y-player.y)<25){s.dead=true;hearts--;if(hearts<=0)reset()}});
+  enemyShots=enemyShots.filter(s=>!s.dead&&s.x>0);
+ }
+ particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.15;p.life--});particles=particles.filter(p=>p.life>0);
+ document.getElementById('stats').textContent='Герой: '+hero+' · '+('❤️'.repeat(hearts))+' · 🪙 '+coins;
+}
+function hit(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+function render(){
+ background();
+ if(mode==='platform'){
+  drawPlatform();
+  pickups.forEach(p=>{if(!p.got){star(p.x,p.y,9,'#ffd83d');star(p.x,p.y,4,'#fff4a0')}});
+  enemies.forEach(e=>{if(!e.alive)return;rect(e.x,e.y+5,e.w,e.h-5,'#6b4dd0');rect(e.x+4,e.y,e.w-8,10,'#b8a3ff');rect(e.x+5,e.y+12,5,5,'#ff425f');rect(e.x+18,e.y+12,5,5,'#ff425f')});
+  shots.forEach(s=>rect(s.x,s.y,13,5,'#8dff35'));
+  drawHero(player.x,player.y,hero);
+  text('ИЗМЕРЕНИЕ 01: ЗЕЛЁНЫЙ МИР',18,30,17,'#9eff5c');
+  text('Найди портал →',760,360,15,'#aaff78');
+ }else{
+  // space shooter
+  star(140,140,70,'#1d3474');star(145,140,45,'#294ba0');star(740,440,55,'#1e785f');
+  for(let i=0;i<7;i++){let x=750+(i*53+frame*2)%180;rect(x,70+(i*67)%390,22,13,'#df4b85');rect(x+6,74+(i*67)%390,5,5,'#fff')}
+  // saucer
+  ctx.fillStyle='#91eaff';ctx.beginPath();ctx.ellipse(player.x,player.y+15,35,13,0,0,Math.PI*2);ctx.fill();rect(player.x-18,player.y-1,36,13,'#6e8bba');drawHero(player.x-9,player.y-23,hero,.55);
+  shots.forEach(s=>rect(s.x,s.y,17,5,'#8dff35'));enemyShots.forEach(s=>rect(s.x,s.y,13,5,'#ff4b86'));
+  text('КОСМИЧЕСКАЯ БИТВА',18,30,17,'#9eff5c');text('Уничтожай корабли!',18,53,13,'#c5eaff');
+ }
+ particles.forEach(p=>rect(p.x,p.y,4,4,'#9dff3d'));
+ if(paused){rect(300,210,360,100,'#07152a');text('ПАУЗА',420,255,30,'#9eff5c');text('Нажми P, чтобы продолжить',330,285,15)}
+ if(won){rect(220,190,520,130,'#07152a');text('ПОРТАЛ АКТИВИРОВАН!',270,240,25,'#9eff5c');text('Отличная работа, путешественник!',280,275,17)}
+}
+function loop(){update();render();requestAnimationFrame(loop)}
+function press(k,on){if(k in keys)keys[k]=on;if(k==='switch'&&on)hero=hero==='Rick'?'Morty':'Rick'}
+document.querySelectorAll('[data-key]').forEach(b=>{const k=b.dataset.key;const down=e=>{e.preventDefault();press(k,true);b.classList.add('active')};const up=e=>{e.preventDefault();press(k,false);b.classList.remove('active')};b.addEventListener('pointerdown',down);b.addEventListener('pointerup',up);b.addEventListener('pointerleave',up);b.addEventListener('pointercancel',up)});
+window.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','ArrowUp',' ','z','Z','x','X','r','R','m','M','p','P'].includes(e.key))e.preventDefault();if(e.key==='ArrowLeft')keys.left=true;if(e.key==='ArrowRight')keys.right=true;if(e.key==='ArrowUp'||e.key===' ')keys.jump=true;if(e.key.toLowerCase()==='z')keys.fire=true;if(['x','r','m'].includes(e.key.toLowerCase()))hero=hero==='Rick'?'Morty':'Rick';if(e.key.toLowerCase()==='p')paused=!paused});
+window.addEventListener('keyup',e=>{if(e.key==='ArrowLeft')keys.left=false;if(e.key==='ArrowRight')keys.right=false;if(e.key==='ArrowUp'||e.key===' ')keys.jump=false;if(e.key.toLowerCase()==='z')keys.fire=false});
+document.getElementById('mode').onclick=()=>{mode=mode==='platform'?'space':'platform';document.getElementById('mode').textContent='РЕЖИМ: '+(mode==='platform'?'ПЛАТФОРМЕР':'КОСМОС');player.x=90;player.y=350};
+document.getElementById('restart').onclick=reset;
+reset();loop();
+})();
+</script></body></html>
