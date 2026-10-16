@@ -1,16 +1,22 @@
-## Hi there 👋
+Rick and Morty 8-Bit Game 👾
 
-<!--
-**rick-morty-8bit-game/rick-morty-8bit-game** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
+A retro 8-bit Android game inspired by Rick and Morty.
 
-Here are some ideas to get you started:
+🎮 Features
 
-- 🔭 I’m currently working on ...
-- 🌱 I’m currently learning ...
-- 👯 I’m looking to collaborate on ...
-- 🤔 I’m looking for help with ...
-- 💬 Ask me about ...
-- 📫 How to reach me: ...
-- 😄 Pronouns: ...
-- ⚡ Fun fact: ...
--->
+- Pixel-art graphics
+- Retro arcade gameplay
+- Rick and Morty inspired characters
+- Simple touch controls
+
+📱 Platform
+
+Android
+
+🚧 Status
+
+Game development in progress.
+
+🎯 Goal
+
+Create a playable 8-bit adventure game for Android.
